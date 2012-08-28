@@ -1,0 +1,186 @@
+﻿<!DOCTYPE html>
+<html>
+<head>
+    <title>HTML5 Puzzle</title>
+    <meta property="og:title" content="Johnny Ink">
+    <meta property="og:image" content="">
+    <meta property="og:description" content="">
+    <link href="css/site.css" rel="stylesheet" type="text/css" />
+    <script src="js/jquery-1.7.2.min.js" type="text/javascript"></script>
+    <script src="js/paper.js" type="text/javascript"></script>
+    <script type="text/paperscript" canvas="canvas">
+        // Ported from original Metaball script by SATO Hiroyuki
+        // http://park12.wakwak.com/~shp/lc/et/en_aics_script.html
+        project.currentStyle = {
+            fillColor: 'black'
+        };
+
+        var hitOptions = {
+            segments: false,
+            stroke: false,
+            fill: true,
+            tolerance: 5
+        };
+
+        var targetPosition = null;
+
+        var ballPositions = [[255, 129], [610, 73], [486, 363],
+            [117, 459], [484, 726], [843, 306], [789, 615], [1049, 82],
+            [1292, 428], [1117, 733], [1352, 86], [92, 798]];
+
+        var handle_len_rate = 2.4;
+        var collidingBalls = [];
+        var circlePaths = [];
+        var radius = 20;
+        var direction = new Point(0, 0);
+        for (var i = 0, l = ballPositions.length; i < l; i++) {
+            var path = new Path.Circle(ballPositions[i], 20);
+            path.index = i + 1;
+            circlePaths.push(path);
+        }
+
+        var largeCircle = new Path.Circle([676, 433], 50);
+        largeCircle.index = i;
+        circlePaths.push(largeCircle);
+
+//        function onMouseMove(event) {
+//            largeCircle.position = event.point;
+//            generateConnections(circlePaths);
+//        }
+
+        function onFrame(event) {
+            var velocity = 0;
+            if (targetPosition) {
+                var distanceToTarget = targetPosition - largeCircle.position;
+                velocity = 2 * Math.sqrt(distanceToTarget.x * distanceToTarget.x + distanceToTarget.y * distanceToTarget.y);
+            }
+            largeCircle.position += direction * event.delta * velocity;
+            generateConnections(circlePaths);
+        }
+
+        function onMouseDown(event) {
+            var target;
+            var hitResult = project.hitTest(event.point, hitOptions);
+
+            if (event.modifiers.shift) {
+                if (hitResult.type == 'segment') {
+                    hitResult.segment.remove();
+                };
+                return;
+            }
+
+            if (hitResult) {
+                target = hitResult.item;
+                targetPosition = target.position;
+                var deltaVector = targetPosition - largeCircle.position;
+                var h = Math.sqrt(deltaVector.x * deltaVector.x + deltaVector.y * deltaVector.y);
+                direction = new Point(deltaVector.x / h, deltaVector.y / h);
+                if (hitResult.type == 'segment') {
+                    segment = hitResult.segment;
+                } else if (hitResult.type == 'stroke') {
+                    var location = hitResult.location;
+                    segment = path.insert(location.index + 1, event.point);
+                    path.smooth();
+                }
+            }
+//            movePath = hitResult.type == 'fill';
+//            if (movePath)
+//                project.activeLayer.addChild(hitResult.item);
+        }
+
+        var connections;
+        function generateConnections(paths) {
+            if (connections)
+                connections.remove();
+            connections = new Group();
+            collidingBalls.length = 0;
+            for (var i = 0, l = paths.length; i < l; i++) {
+                for (var j = i - 1; j >= 0; j--) {
+                    var path = metaball(paths[i], paths[j], 0.5, handle_len_rate, 300);
+                    if (path) {
+                        collidingBalls.push(j);
+                        window.viewModel.connectionCount(collidingBalls.length);
+                        connections.appendTop(path);
+                        path.removeOnMove();
+                    }
+                }
+            }
+        }
+
+        generateConnections(circlePaths);
+
+        // ---------------------------------------------
+        function metaball(ball1, ball2, v, handle_len_rate, maxDistance) {
+            var center1 = ball1.position;
+            var center2 = ball2.position;
+            var radius1 = ball1.bounds.width / 2;
+            var radius2 = ball2.bounds.width / 2;
+            var pi2 = Math.PI / 2;
+            var d = center1.getDistance(center2);
+            var u1, u2;
+
+            if (radius1 == 0 || radius2 == 0)
+                return;
+
+            if (d > maxDistance || d <= Math.abs(radius1 - radius2)) {
+                return;
+            } else if (d < radius1 + radius2) { // case circles are overlapping
+                u1 = Math.acos((radius1 * radius1 + d * d - radius2 * radius2) /
+                        (2 * radius1 * d));
+                u2 = Math.acos((radius2 * radius2 + d * d - radius1 * radius1) /
+                        (2 * radius2 * d));
+            } else {
+                u1 = 0;
+                u2 = 0;
+            }
+
+            var angle1 = (center2 - center1).getAngleInRadians();
+            var angle2 = Math.acos((radius1 - radius2) / d);
+            var angle1a = angle1 + u1 + (angle2 - u1) * v;
+            var angle1b = angle1 - u1 - (angle2 - u1) * v;
+            var angle2a = angle1 + Math.PI - u2 - (Math.PI - u2 - angle2) * v;
+            var angle2b = angle1 - Math.PI + u2 + (Math.PI - u2 - angle2) * v;
+            var p1a = center1 + getVector(angle1a, radius1);
+            var p1b = center1 + getVector(angle1b, radius1);
+            var p2a = center2 + getVector(angle2a, radius2);
+            var p2b = center2 + getVector(angle2b, radius2);
+
+            // define handle length by the distance between
+            // both ends of the curve to draw
+            var totalRadius = (radius1 + radius2);
+            var d2 = Math.min(v * handle_len_rate, (p1a - p2a).length / totalRadius);
+
+            // case circles are overlapping:
+            d2 *= Math.min(1, d * 2 / (radius1 + radius2));
+
+            radius1 *= d2;
+            radius2 *= d2;
+
+            var path = new Path([p1a, p2a, p2b, p1b]);
+            path.style = ball1.style;
+            path.closed = true;
+            var segments = path.segments;
+            segments[0].handleOut = getVector(angle1a - pi2, radius1);
+            segments[1].handleIn = getVector(angle2a + pi2, radius2);
+            segments[2].handleOut = getVector(angle2b - pi2, radius2);
+            segments[3].handleIn = getVector(angle1b + pi2, radius1);
+            return path;
+        }
+
+        // ------------------------------------------------
+        function getVector(radians, length) {
+            return new Point({
+                // Convert radians to degrees:
+                angle: radians * 180 / Math.PI,
+                length: length
+            });
+        }
+    </script>
+</head>
+<body>
+    <canvas id="canvas" class="canvas" resize></canvas>
+    <label class="onscreen" data-bind="text: connectionCount() + ' connections'"></label>
+</body>
+<script src="js/knockout-2.1.0.js" type="text/javascript"></script>
+<script src="js/johnny-ink.js" type="text/javascript"></script>
+</html>
