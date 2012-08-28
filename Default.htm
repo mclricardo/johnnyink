@@ -43,6 +43,29 @@
         largeCircle.index = i;
         circlePaths.push(largeCircle);
 
+        var leftEye = new Path.Circle(largeCircle.position + new Point(-15, 20), 10);
+        leftEye.fillColor = 'white';
+
+        var leftPupil = new Path.Circle(largeCircle.position + new Point(-15, 20), 5);
+        leftPupil.fillColor = 'black';
+
+        var rightEye = new Path.Circle(largeCircle.position + new Point(15, 20), 10);
+        rightEye.fillColor = 'white';
+
+        var rightPupil = new Path.Circle(largeCircle.position + new Point(15, 20), 5);
+        rightPupil.fillColor = 'black';
+
+        var leftEyeBrow = new Path.RegularPolygon(leftEye.position + new Point(5, -15), 4, 20);
+        leftEyeBrow.rotate(30);
+        leftEyeBrow.fillColor = 'black';
+
+        var rightEyeBrow = new Path.RegularPolygon(rightEye.position + new Point(-5, -15), 4, 20);
+        rightEyeBrow.rotate(-30);
+        rightEyeBrow.fillColor = 'black';
+        
+        var blinkDirection = 1;
+        var blinkTime = 0;
+
 //        function onMouseMove(event) {
 //            largeCircle.position = event.point;
 //            generateConnections(circlePaths);
@@ -55,7 +78,32 @@
                 velocity = 2 * Math.sqrt(distanceToTarget.x * distanceToTarget.x + distanceToTarget.y * distanceToTarget.y);
             }
             largeCircle.position += direction * event.delta * velocity;
+
+            leftEye.position = largeCircle.position + new Point(-15, 20);
+            leftPupil.position = largeCircle.position + new Point(-15, 20);
+            rightEye.position = largeCircle.position + new Point(15, 20);
+            rightPupil.position = largeCircle.position + new Point(15, 20);
+            
+            var eyeBrowShift = -15 + blinkDirection * (blinkTime * 100);
+            leftEyeBrow.position = leftEye.position + new Point(5, eyeBrowShift);
+            rightEyeBrow.position = rightEye.position + new Point(-5, eyeBrowShift);
+
             generateConnections(circlePaths);
+
+            if (blinkDirection != 0) {
+                blinkTime += event.delta;
+            }
+
+            if (blinkTime > 0.2) {
+                blinkTime = 0;
+                blinkDirection = 0;
+            }
+            else if (event.time % 2 < 0.1) {
+                blinkDirection = 1;
+            }
+            else if (blinkTime > 2) {
+                blinkDirection = -1;
+            }
         }
 
         function onMouseDown(event) {
